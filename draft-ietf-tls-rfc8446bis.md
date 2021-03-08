@@ -3,7 +3,7 @@ title: The Transport Layer Security (TLS) Protocol Version 1.3
 abbrev: TLS
 docname: draft-ietf-tls-rfc8446bis-latest
 category: std
-updates: 4492, 5705, 6066
+updates: 4492, 5705, 6066, 7627
 obsoletes: 5077, 5246, 6961, 8446
 
 ipr: pre5378Trust200902
@@ -38,6 +38,7 @@ normative:
   RFC6066:
   RFC6655:
   RFC8439:
+  RFC7627:
   RFC7748:
   RFC7919:
   RFC8032:
@@ -91,7 +92,6 @@ informative:
   RFC7250:
   RFC7465:
   RFC7568:
-  RFC7627:
   RFC7685:
 
   SSL2:
@@ -376,6 +376,13 @@ informative:
          ins: T. Shrimpton
        target: https://eprint.iacr.org/2018/634
 
+  FETCH:
+       title: "Fetch Standard"
+       date: Living Standard
+       author:
+         org: WHATWG
+       target: https://fetch.spec.whatwg.org/
+
 --- abstract
 
 This document specifies version 1.3 of the Transport Layer Security
@@ -492,7 +499,8 @@ TLS 1.3 was originally specified in {{?RFC8446}}. This document is
 solely an editorial update. It contains updated text in areas which
 were found to be unclear as well as other editorial improvements.
 In addition, it removes the use of the term "master" as applied
-to secrets in favor of the term "main".
+to secrets in favor of the term "main" or shorter names where no
+term was neccessary.
      
 
 ##  Major Differences from TLS 1.2
@@ -566,6 +574,10 @@ support TLS 1.3:
 
 * The "signature_algorithms_cert" extension allows a client to indicate
   which signature algorithms it can validate in X.509 certificates.
+
+* The term "master" as applied to secrets has been removed, and the
+  "extended_master_secret" extension {{RFC7627}} has been renamed to
+  "extended_main_secret".
 
 Additionally, this document clarifies some compliance requirements for earlier
 versions of TLS; see {{protocol-invariants}}.
@@ -911,7 +923,7 @@ provided via the server's Random value, but 0-RTT data does not depend
 on the ServerHello and therefore has weaker guarantees.  This is especially
 relevant if the data is authenticated either with TLS client
 authentication or inside the application protocol. The same warnings
-apply to any use of the early_exporter_main_secret.
+apply to any use of the early_exporter_secret.
 
 0-RTT data cannot be duplicated within a connection (i.e., the server will
 not process the same data twice for the same connection), and an
@@ -1646,15 +1658,16 @@ Here:
 The list of extension types is maintained by IANA as described in
 {{iana-considerations}}.
 
-Extensions are generally structured in a request/response fashion, though
-some extensions are just indications with no corresponding response. The client
-sends its extension requests in the ClientHello message, and the server sends
-its extension responses in the ServerHello, EncryptedExtensions,
-HelloRetryRequest, and Certificate messages. The server sends extension requests
-in the CertificateRequest message which a client MAY respond to with
-a Certificate message. The server MAY also send unsolicited
-extensions in the NewSessionTicket, though the client does not respond
-directly to these.
+Extensions are generally structured in a request/response fashion,
+though some extensions are just requests with no corresponding
+response (i.e., indications). The client sends its extension requests
+in the ClientHello message, and the server sends its extension
+responses in the ServerHello, EncryptedExtensions, HelloRetryRequest,
+and Certificate messages. The server sends extension requests in the
+CertificateRequest message which a client MAY respond to with a
+Certificate message. The server MAY also send unsolicited extensions
+in the NewSessionTicket, though the client does not respond directly
+to these.
 
 Implementations MUST NOT send extension responses
 if the remote endpoint did not send the corresponding extension requests,
@@ -2089,7 +2102,7 @@ defined in {{RFC5280}}:
 Separate specifications may define matching rules for other certificate
 extensions.
 
-### Post-Handshake Client Authentication {#post_handshake_auth}
+### Post-Handshake Certificate-Based Client Authentication {#post_handshake_auth}
 
 The "post_handshake_auth" extension is used to indicate that a client is willing
 to perform post-handshake authentication ({{post-handshake-authentication}}). Servers
@@ -2872,8 +2885,8 @@ key exchange method uses certificates for authentication (this
 includes all key exchange methods defined in this document except PSK).
 
 The client MUST send a Certificate message if and only if the server has
-requested client authentication via a CertificateRequest message
-({{certificate-request}}). If the server requests client authentication
+requested certificate-based client authentication via a CertificateRequest message
+({{certificate-request}}). If the server requests certificate-based client authentication
 but no suitable certificate is available, the client
 MUST send a Certificate message containing no certificates (i.e., with
 the "certificate_list" field having length 0).  A Finished message MUST
@@ -3276,7 +3289,7 @@ appropriate application traffic key.
 At any time after the server has received the client Finished message,
 it MAY send a NewSessionTicket message. This message creates a unique
 association between the ticket value and a secret PSK
-derived from the resumption main secret (see {{cryptographic-computations}}).
+derived from the resumption secret (see {{cryptographic-computations}}).
 
 The client MAY use this PSK for future handshakes by including the
 ticket value in the "pre_shared_key" extension in its ClientHello
@@ -3311,8 +3324,8 @@ than the value sent in the previous session. Note that if a server
 implementation declines all PSK identities with different SNI values, these two
 values are always the same.
 
-Note: Although the resumption main secret depends on the client's second
-flight, a server which does not request client authentication MAY compute
+Note: Although the resumption secret depends on the client's second
+flight, a server which does not request certificate-based client authentication MAY compute
 the remainder of the transcript independently and then send a
 NewSessionTicket immediately upon sending its Finished rather than
 waiting for the client Finished.  This might be appropriate in cases
@@ -3381,8 +3394,8 @@ max_early_data_size:
 The PSK associated with the ticket is computed as:
 
 ~~~~
-    HKDF-Expand-Label(resumption_main_secret,
-                     "resumption", ticket_nonce, Hash.length)
+    HKDF-Expand-Label(resumption_secret,
+                      "resumption", ticket_nonce, Hash.length)
 ~~~~
 
 Because the ticket_nonce value is distinct for each NewSessionTicket
@@ -3400,7 +3413,7 @@ and the time since the peer's online CertificateVerify signature.
 ### Post-Handshake Authentication
 
 When the client has sent the "post_handshake_auth" extension (see
-{{post_handshake_auth}}), a server MAY request client authentication at any time
+{{post_handshake_auth}}), a server MAY request certificate-based client authentication at any time
 after the handshake has completed by sending a CertificateRequest message. The
 client MUST respond with the appropriate Authentication messages (see
 {{authentication-messages}}). If the client chooses to authenticate, it MUST
@@ -3413,7 +3426,7 @@ A client that receives a CertificateRequest message without having sent
 the "post_handshake_auth" extension MUST send an "unexpected_message" fatal
 alert.
 
-Note: Because client authentication could involve prompting the user, servers
+Note: Because certificate-based client authentication could involve prompting the user, servers
 MUST be prepared for some delay, including receiving an arbitrary number of
 other messages between sending the CertificateRequest and receiving a
 response. In addition, clients which receive multiple CertificateRequests in
@@ -4172,7 +4185,7 @@ secret to be added. In this version of TLS 1.3, the two
 input secrets are:
 
 - PSK (a pre-shared key established externally or derived from
-  the resumption_main_secret value from a previous connection)
+  the resumption_secret value from a previous connection)
 - (EC)DHE shared secret ({{ecdhe-shared-secret-calculation}})
 
 This produces a full key derivation schedule shown in the diagram below.
@@ -4211,7 +4224,7 @@ result of renaming the values while retaining compatibility.
                  |
                  +-----> Derive-Secret(., "e exp master",
                  |                     ClientHello)
-                 |                     = early_exporter_main_secret
+                 |                     = early_exporter_secret
                  v
            Derive-Secret(., "derived", "")
                  |
@@ -4241,11 +4254,11 @@ result of renaming the values while retaining compatibility.
                  |
                  +-----> Derive-Secret(., "exp master",
                  |                     ClientHello...server Finished)
-                 |                     = exporter_main_secret
+                 |                     = exporter_secret
                  |
                  +-----> Derive-Secret(., "res master",
                                        ClientHello...client Finished)
-                                       = resumption_main_secret
+                                       = resumption_secret
 ~~~~
 
 The general pattern here is that the secrets shown down the left side
@@ -4264,7 +4277,7 @@ rounds, so if PSK is not in use, Early Secret will still be
 HKDF-Extract(0, 0). For the computation of the binder_key, the label is
 "ext binder" for external PSKs (those provisioned outside of TLS)
 and "res binder" for resumption PSKs (those provisioned as the resumption
-main secret of a previous handshake). The different labels prevent
+secret of a previous handshake). The different labels prevent
 the substitution of one type of PSK for the other.
 
 There are multiple potential Early Secret values, depending on
@@ -4391,9 +4404,9 @@ The exporter value is computed as:
         HKDF-Expand-Label(Derive-Secret(Secret, label, ""),
                           "exporter", Hash(context_value), key_length)
 
-Where Secret is either the early_exporter_main_secret or the
-exporter_main_secret.  Implementations MUST use the exporter_main_secret unless
-explicitly specified by the application. The early_exporter_main_secret is
+Where Secret is either the early_exporter_secret or the
+exporter_secret.  Implementations MUST use the exporter_secret unless
+explicitly specified by the application. The early_exporter_secret is
 defined for use in settings where an exporter is needed for 0-RTT data.
 A separate interface for the early exporter is RECOMMENDED; this avoids
 the exporter user accidentally using an early exporter when a regular
@@ -4754,6 +4767,9 @@ Security issues are discussed throughout this memo, especially in
 [[OPEN ISSUE: Should we remove this? I am reluctant to create a situation
 where one needs to read 8446 to process this document.]]
 
+[[OPEN ISSUE: Add some text to rename the extended_master_secret entry in
+the extensions registry to extended_main_secret, after the above is resolved.]]
+
 
 This document uses several registries that were originally created in
 {{RFC4346}} and updated in {{?RFC8447}}. IANA has updated these to reference this document.
@@ -4942,7 +4958,7 @@ here                  +--------+--------+
                       +> WAIT_FLIGHT2 <--------+
                                |
                       +--------+--------+
-              No auth |                 | Client auth
+              No auth |                 | Cert-based client auth
                       |                 |
                       |                 v
                       |             WAIT_CERT
@@ -5144,8 +5160,10 @@ Cryptographic details:
   generator (see {{random-number-generation-and-seeding}}) when generating Diffie-Hellman
   private values, the ECDSA "k" parameter, and other security-critical values?
   It is RECOMMENDED that implementations implement "deterministic ECDSA"
-  as specified in {{!RFC6979}}.
-
+  as specified in {{!RFC6979}}. Note that purely deterministic ECC signatures such as
+  deterministic ECDSA and EdDSA may be vulnerable to certain side-channel and fault
+  injection attacks in easily accessible IoT devices.
+  
 - Do you zero-pad Diffie-Hellman public key values and shared
   secrets to the group size (see {{ffdhe-param}} and {{finite-field-diffie-hellman}})?
 
@@ -5162,6 +5180,12 @@ as the number of connections that a client might use; for example, a web browser
 using HTTP/1.1 {{RFC7230}} might open six connections to a server. Servers SHOULD
 issue new tickets with every connection. This ensures that clients are
 always able to use a new ticket when creating a new connection.
+
+Offering a ticket to a server additionally allows the server to correlate
+different connections. This is possible independent of ticket reuse. Client
+applications SHOULD NOT offer tickets across connections that are meant to be
+uncorrelated. For example, {{FETCH}} defines network partition keys to separate
+cache lookups in web browsers.
 
 
 ## Unauthenticated Operation
@@ -5185,6 +5209,30 @@ TLS 1.3). If no such mechanism is used, then the connection has no protection
 against active man-in-the-middle attack; applications MUST NOT use TLS
 in such a way absent explicit configuration or a specific application
 profile.
+
+
+# Updates to TLS 1.2 {#update-tls12}
+
+To align with the names used this document, the following terms from
+{{RFC5246}} are renamed:
+
+* The master secret, computed in Section 8.1 of {{RFC5246}}, is renamed to
+  the main secret. It is referred to as main_secret in formulas and
+  structures, instead of master_secret. However, the label parameter to the PRF
+  function is left unchanged for compatibility.
+
+* The premaster secret is renamed to the preliminary secret. It is referred to
+  as preliminary_secret in formulas and structures, instead of
+  pre_master_secret.
+
+* The PreMasterSecret and EncryptedPreMasterSecret structures, defined in
+  Section 7.4.7.1 of {{RFC5246}}, are renamed to PreliminarySecret and
+  EncryptedPreliminarySecret, respectively.
+
+Correspondingly, the extension defined in {{RFC7627}} is renamed to the
+"Extended Main Secret" extension. The extension code point is renamed to
+"extended_main_secret". The label parameter to the PRF function in Section 4 of
+{{RFC7627}} is left unchanged for compatibility.
 
 
 # Backward Compatibility
@@ -5218,12 +5266,12 @@ deployments, all implementations SHOULD support validation of certification path
 based on the expectations in this document, even when handling prior TLS versions'
 handshakes (see {{server-certificate-selection}}).
 
-TLS 1.2 and prior supported an "Extended Master Secret" {{RFC7627}} extension
+TLS 1.2 and prior supported an "Extended Main Secret" {{RFC7627}} extension
 which digested large parts of the handshake transcript into the secret and
-derived keys. Because TLS 1.3 always hashes in the transcript up to the server Finished,
-implementations which support both TLS 1.3 and earlier versions SHOULD
-indicate the use of the Extended Master Secret extension in their APIs
-whenever TLS 1.3 is used.
+derived keys. Note this extension was renamed in {{update-tls12}}. Because TLS
+1.3 always hashes in the transcript up to the server Finished, implementations
+which support both TLS 1.3 and earlier versions SHOULD indicate the use of the
+Extended Main Secret extension in their APIs whenever TLS 1.3 is used.
 
 
 ## Negotiating with an Older Server
@@ -5434,8 +5482,10 @@ Key Compromise Impersonation (KCI) resistance:
 
 Protection of endpoint identities:
 : The server's identity (certificate) should be protected against passive
-  attackers. The client's identity should be protected against both passive
-  and active attackers.
+  attackers. The client's identity (certificate) should be protected against
+  both passive and active attackers. This property does not hold for cipher
+  suites without confidentiality; while this specification does not define any such cipher suites,
+  other documents may do so.
 {:br}
 
 Informally, the signature-based modes of TLS 1.3 provide for the
@@ -5453,7 +5503,7 @@ secret into a unique per-connection set of short-term session keys. This
 secret may have been established in a previous handshake. If
 PSK with (EC)DHE key establishment is used, these session keys will also be forward
 secret. The resumption PSK has been designed so that the
-resumption main secret computed by connection N and needed to form
+resumption secret computed by connection N and needed to form
 connection N+1 is separate from the traffic keys used by connection N,
 thus providing forward secrecy between the connections.
 In addition, if multiple tickets are established on the same
@@ -5468,8 +5518,8 @@ and the current handshake, as well as between the session where the
 PSK was established and the current session. This binding
 transitively includes the original handshake transcript, because that
 transcript is digested into the values which produce the resumption
-main secret. This requires that both the KDF used to produce the
-resumption main secret and the MAC used to compute the binder be collision
+secret. This requires that both the KDF used to produce the
+resumption secret and the MAC used to compute the binder be collision
 resistant. See {{key-derivation-and-hkdf}} for more on this.
 Note: The binder does not cover the binder values from other
 PSKs, though they are included in the Finished MAC.
@@ -5540,16 +5590,16 @@ long as these are differentiated via the key and/or the labels.
 
 Note that HKDF-Expand implements a pseudorandom function (PRF) with both inputs and
 outputs of variable length. In some of the uses of HKDF in this document
-(e.g., for generating exporters and the resumption_main_secret), it is necessary
+(e.g., for generating exporters and the resumption_secret), it is necessary
 that the application of HKDF-Expand be collision resistant; namely, it should
 be infeasible to find two different inputs to HKDF-Expand that output the same
 value. This requires the underlying hash function to be collision resistant
 and the output length from HKDF-Expand to be of size at least 256 bits (or as
 much as needed for the hash function to prevent finding collisions).
 
-### Client Authentication
+### Certificate-Based Client Authentication
 
-A client that has sent authentication data to a server, either during
+A client that has sent certificate-based authentication data to a server, either during
 the handshake or in post-handshake authentication, cannot be sure whether
 the server afterwards considers the client to be authenticated or not.
 If the client needs to determine if the server considers the
@@ -5574,7 +5624,7 @@ the exposure to replay.
 
 ### Exporter Independence
 
-The exporter_main_secret and early_exporter_main_secret are
+The exporter_secret and early_exporter_secret are
 derived to be independent of the traffic keys and therefore do
 not represent a threat to the security of traffic encrypted with
 those keys. However, because these secrets can be used to
@@ -5582,7 +5632,7 @@ compute any exporter value, they SHOULD be erased as soon as
 possible. If the total set of exporter labels is known, then
 implementations SHOULD pre-compute the inner Derive-Secret
 stage of the exporter computation for all those labels,
-then erase the \[early_]exporter_main_secret, followed by
+then erase the \[early_]exporter_secret, followed by
 each inner values as soon as it is known that it will not be
 needed again.
 
@@ -5869,6 +5919,17 @@ in certificates that do not have the digitalSignature bit set,
 and many clients do not enforce this restriction.
 
 
+# Changes Since -00
+
+[[RFC EDITOR: Please remove in final RFC.]]
+
+* Update TLS 1.2 terminology
+* Specify "certificate-based" client authentication
+* Clarify that privacy guarantees don't apply when you have null encryption
+* Shorten some names
+* Address tracking implications of resumption
+
+  
 # Contributors
 {:numbered="false"}
 ~~~~
